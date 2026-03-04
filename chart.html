@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      overflow: hidden;
+    }
+
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+      height: 36px;
+      box-sizing: border-box;
+    }
+
+    #drawBtn {
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 2px solid #2962FF;
+      background: white;
+      color: #2962FF;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    #drawBtn.active {
+      background: #2962FF;
+      color: white;
+    }
+
+    #toolHint {
+      color: #999;
+      font-size: 11px;
+    }
+
+    #chart {
+      width: 100%;
+      /* 기본: 차트 스크롤/핀치줌 허용 */
+      touch-action: pan-x pan-y pinch-zoom;
+    }
+
+    /* 그리기 모드: 브라우저 터치 동작 전부 차단 */
+    #chart.draw-mode {
+      touch-action: none;
+    }
+
+    #priceTooltip {
+      position: fixed;
+      background: #2962FF;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      display: none;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <button id="drawBtn" onclick="toggleDrawMode()">✏️ 지지선 그리기</button>
+  <span id="toolHint">클릭: 추가 &nbsp;|&nbsp; 드래그: 이동 &nbsp;|&nbsp; 더블클릭: 삭제</span>
+</div>
+
+<div id="chart"></div>
+<div id="priceTooltip"></div>
+
+<script>
+  const data        = __CANDLE_DATA__;
+  const supportInit = __SUPPORT_LINES__;
+  const markers     = __MARKER_DATA__;
+
+  if (typeof LightweightCharts === "undefined") {
+    document.body.innerHTML = "<h2>❌ LightweightCharts 로딩 실패</h2>";
+  } else {
+
+    const TOOLBAR_H = 36;
+    const chartEl   = document.getElementById("chart");
+    chartEl.style.height = (window.innerHeight - TOOLBAR_H) + "px";
+
+    // =====================
+    // 차트 생성
+    // fixLeftEdge / fixRightEdge / lockVisibleTimeRangeOnResize 제거
+    // → 마우스 휠 줌 + 핀치줌 + 드래그 이동 자유롭게 가능
+    // =====================
+    const chart = LightweightCharts.createChart(chartEl, {
+      layout: { background: { color: "#ffffff" } },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { visible: false }
+      },
+      rightPriceScale: {
+        scaleMargins: { top: 0.05, bottom: 0.3 }
+      },
+      timeScale: {
+        visible: false,
+        rightOffset: 5
+      },
+      crosshair: { mode: 0 },
+      handleScroll: true,   // 기본: 스크롤 허용
+      handleScale: true     // 기본: 줌 허용
+    });
+
+    // 캔들
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: "#d32f2f",
+      downColor: "#1976d2",
+      wickUpColor: "#d32f2f",
+      wickDownColor: "#1976d2",
+      borderVisible: false
+    });
+    candleSeries.setData(data);
+    candleSeries.setMarkers(markers);
+
+    // 볼륨
+    const volumeSeries = chart.addHistogramSeries({
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+      overlay: false
+    });
+    chart.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.75, bottom: 0.02 }
+    });
+    volumeSeries.setData(
+      data.map(d => ({
+        time: d.time,
+        value: d.volume,
+        color: d.close >= d.open ? "#d32f2f" : "#1976d2"
+      }))
+    );
+
+    // =====================
+    // 줌/스크롤 상태 유지
+    // localStorage에 visibleRange 저장 → 다음 캔들 후에도 복원
+    // =====================
+    const RANGE_KEY = "chart_visible_range";
+
+    function saveRange() {
+      try {
+        const range = chart.timeScale().getVisibleRange();
+        if (range) localStorage.setItem(RANGE_KEY, JSON.stringify(range));
+      } catch(e) {}
+    }
+
+    function restoreRange() {
+      try {
+        const saved = localStorage.getItem(RANGE_KEY);
+        if (saved) {
+          const range = JSON.parse(saved);
+          // 저장된 범위가 현재 데이터 범위 안에 있는지 확인
+          const firstTime = data[0].time;
+          const lastTime  = data[data.length - 1].time;
+          if (range.from >= firstTime && range.to <= lastTime + 86400) {
+            chart.timeScale().setVisibleRange(range);
+            return true;
+          }
+        }
+      } catch(e) {}
+      return false;
+    }
+
+    requestAnimationFrame(() => {
+      const restored = restoreRange();
+      if (!restored) chart.timeScale().fitContent();
+    });
+
+    // 차트 범위가 바뀔 때마다 저장
+    chart.timeScale().subscribeVisibleTimeRangeChange(saveRange);
+
+    // =====================
+    // 지지선 관리
+    // =====================
+    let supportLines = [];
+    let drawMode     = false;
+    let dragging     = null;
+    let lastClickT   = 0;
+
+    const tooltip = document.getElementById("priceTooltip");
+
+    function toggleDrawMode() {
+      drawMode = !drawMode;
+      document.getElementById("drawBtn").classList.toggle("active", drawMode);
+
+      if (drawMode) {
+        // 그리기 모드 ON → 차트 스크롤/줌 끄기
+        chart.applyOptions({ handleScroll: false, handleScale: false });
+        chartEl.classList.add("draw-mode");
+        chartEl.style.cursor = "crosshair";
+      } else {
+        // 그리기 모드 OFF → 차트 스크롤/줌 다시 켜기
+        chart.applyOptions({ handleScroll: true, handleScale: true });
+        chartEl.classList.remove("draw-mode");
+        chartEl.style.cursor = "default";
+        dragging = null;
+        hideTooltip();
+      }
+    }
+
+    window.addEventListener("message", (e) => {
+      if (e.data && e.data.type === "SET_SUPPORT_MODE") {
+        drawMode = e.data.enabled;
+        document.getElementById("drawBtn").classList.toggle("active", drawMode);
+        chart.applyOptions({
+          handleScroll: !drawMode,
+          handleScale: !drawMode
+        });
+      }
+    });
+
+    // =====================
+    // 지지선 추가/삭제/업데이트
+    // =====================
+    function addSupportLine(price) {
+      const id    = Date.now() + Math.random();
+      const times = data.map(d => d.time);
+
+      const series = chart.addLineSeries({
+        color: "#2962FF",
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        crosshairMarkerVisible: false,
+        title: "",
+      });
+      series.setData(times.map(t => ({ time: t, value: price })));
+
+      supportLines.push({ id, price, series });
+      syncToStreamlit();
+      return id;
+    }
+
+    function removeSupportLine(id) {
+      const idx = supportLines.findIndex(l => l.id === id);
+      if (idx === -1) return;
+      chart.removeSeries(supportLines[idx].series);
+      supportLines.splice(idx, 1);
+      syncToStreamlit();
+    }
+
+    function updateSupportLine(id, newPrice) {
+      const line = supportLines.find(l => l.id === id);
+      if (!line) return;
+      line.price = newPrice;
+      const times = data.map(d => d.time);
+      line.series.setData(times.map(t => ({ time: t, value: newPrice })));
+    }
+
+    supportInit.forEach(s => addSupportLine(s.price));
+
+    function syncToStreamlit() {
+      const prices = supportLines.map(l => l.price);
+      try {
+        const url = new URL(window.parent.location.href);
+        url.searchParams.set("support_all", JSON.stringify(prices));
+        window.parent.history.replaceState({}, "", url.toString());
+      } catch(e) {}
+    }
+
+    // =====================
+    // 좌표 변환 유틸
+    // =====================
+    function yToPrice(clientY) {
+      const rect = chartEl.getBoundingClientRect();
+      return candleSeries.coordinateToPrice(clientY - rect.top);
+    }
+
+    function getClientPos(e) {
+      if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    // 가까운 지지선 탐색 (터치: ±16px, 마우스: ±8px)
+    function findNearLine(clientY, tolerance) {
+      tolerance = tolerance || 8;
+      const rect = chartEl.getBoundingClientRect();
+      let best = null, bestDist = 9999;
+      for (const line of supportLines) {
+        const lineY = candleSeries.priceToCoordinate(line.price);
+        if (lineY === null) continue;
+        const dist = Math.abs(clientY - (rect.top + lineY));
+        if (dist <= tolerance && dist < bestDist) {
+          best = line;
+          bestDist = dist;
+        }
+      }
+      return best;
+    }
+
+    // =====================
+    // 공통 포인터 핸들러
+    // 그리기 모드 OFF면 차트 기본 동작(스크롤/줌)에 맡김
+    // =====================
+    function handlePointerDown(e, isTouch) {
+      if (!drawMode) return;
+
+      const pos  = getClientPos(e);
+      const now  = Date.now();
+      const near = findNearLine(pos.y, isTouch ? 16 : 8);
+
+      // 더블탭/더블클릭 → 삭제
+      if (now - lastClickT < 300 && near) {
+        removeSupportLine(near.id);
+        hideTooltip();
+        lastClickT = 0;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      lastClickT = now;
+
+      if (near) {
+        dragging = { id: near.id };
+        chartEl.style.cursor = "ns-resize";
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // 빈 곳 탭/클릭 → 새 지지선 추가
+      const price = yToPrice(pos.y);
+      if (price && price > 0) addSupportLine(price);
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function handlePointerMove(e, isTouch) {
+      if (!drawMode) return;
+
+      const pos = getClientPos(e);
+
+      if (dragging) {
+        const price = yToPrice(pos.y);
+        if (price && price > 0) {
+          updateSupportLine(dragging.id, price);
+          showTooltip(pos.x, pos.y, price);
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // 마우스 호버 커서/툴팁
+      if (!isTouch) {
+        const near = findNearLine(pos.y, 8);
+        if (near) {
+          chartEl.style.cursor = "ns-resize";
+          showTooltip(pos.x, pos.y, near.price);
+        } else {
+          chartEl.style.cursor = "crosshair";
+          hideTooltip();
+        }
+      }
+    }
+
+    function handlePointerUp(e, isTouch) {
+      if (!drawMode) return;
+
+      if (dragging) {
+        syncToStreamlit();
+        dragging = null;
+        chartEl.style.cursor = "crosshair";
+        hideTooltip();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+
+    // =====================
+    // 마우스 이벤트 (PC)
+    // =====================
+    chartEl.addEventListener("mousedown",  (e) => handlePointerDown(e, false));
+    chartEl.addEventListener("mousemove",  (e) => handlePointerMove(e, false));
+    chartEl.addEventListener("mouseup",    (e) => handlePointerUp(e, false));
+    chartEl.addEventListener("mouseleave", () => {
+      if (dragging) { syncToStreamlit(); dragging = null; }
+      hideTooltip();
+    });
+
+    // =====================
+    // 터치 이벤트 (모바일)
+    // passive: false → preventDefault() 사용 가능
+    // =====================
+    chartEl.addEventListener("touchstart", (e) => {
+      // 두 손가락 핀치: 그리기 모드에서도 통과시킴 (선 드래그 중엔 무시)
+      if (e.touches.length >= 2) {
+        dragging = null;
+        return;
+      }
+      handlePointerDown(e, true);
+    }, { passive: false });
+
+    chartEl.addEventListener("touchmove", (e) => {
+      if (e.touches.length >= 2) return; // 핀치줌은 차트에 맡김
+      handlePointerMove(e, true);
+    }, { passive: false });
+
+    chartEl.addEventListener("touchend", (e) => {
+      handlePointerUp(e, true);
+    }, { passive: false });
+
+    chartEl.addEventListener("touchcancel", () => {
+      if (dragging) { syncToStreamlit(); dragging = null; }
+      hideTooltip();
+    });
+
+    // =====================
+    // 툴팁
+    // =====================
+    function showTooltip(x, y, price) {
+      tooltip.style.display = "block";
+      tooltip.style.left    = (x + 14) + "px";
+      tooltip.style.top     = (y - 10) + "px";
+      tooltip.textContent   = price.toFixed(2);
+    }
+    function hideTooltip() {
+      tooltip.style.display = "none";
+    }
+
+    // =====================
+    // 리사이즈
+    // =====================
+    window.addEventListener("resize", () => {
+      const h = window.innerHeight - TOOLBAR_H;
+      chartEl.style.height = h + "px";
+      chart.applyOptions({ width: chartEl.clientWidth, height: h });
+    });
+
+  }
+</script>
+</body>
+</html>
