@@ -126,7 +126,11 @@ def to_iso(dt):
 def save_trade_log(row: dict):
     row["session_id"] = SESSION_ID
     row["user_id"] = USER_ID
-    supabase.table("trade_log").insert(row).execute()
+    try:
+        supabase.table("trade_log").insert(row).execute()
+    except Exception as e:
+        st.error(f"❌ DB 저장 실패\n\n**에러:** {e}\n\n**데이터:** {row}")
+        raise
 
 def load_trade_log_df():
     res = supabase.table("trade_log").select("*").eq("user_id", USER_ID).order("trade_id").execute()
