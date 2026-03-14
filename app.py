@@ -259,7 +259,6 @@ def close_position(exit_price, reason="MANUAL EXIT", ratio=1.0):
         "leverage": lev,
         "position_ratio": int(st.session_state.position_ratio * 100),
         "entry_capital": close_amt,
-        "initial_capital": st.session_state.get("initial_capital", close_amt),  # ✅ 최초 진입 원금
         "pnl_dollar": pnl,
         "balance_after": st.session_state.balance,
         "reason": reason
@@ -336,13 +335,8 @@ def get_direction_stats():
             continue
 
         # ✅ 포지션 단위 집계: entry_time으로 그룹핑
-        grp_pnl = sub.groupby("entry_time")["pnl_dollar"].sum()  # 포지션별 최종 합산 손익
-
-        # 최초 진입 원금: initial_capital 컬럼이 있으면 첫 행 기준, 없으면 entry_capital 합산
-        if "initial_capital" in sub.columns:
-            grp_capital = sub.groupby("entry_time")["initial_capital"].first()
-        else:
-            grp_capital = sub.groupby("entry_time")["entry_capital"].sum()
+        grp_pnl = sub.groupby("entry_time")["pnl_dollar"].sum()      # 포지션별 최종 합산 손익
+        grp_capital = sub.groupby("entry_time")["entry_capital"].sum()  # 분할 청산 합산 = 최초 원금
 
         total = len(grp_pnl)
         wins = int((grp_pnl > 0).sum())
@@ -365,15 +359,9 @@ def get_trade_return_stats():
         return 0.0, 0.0, 0.0
 
     # ✅ 포지션 단위 집계: entry_time 기준으로 그룹핑
-    grp_pnl = df.groupby("entry_time")["pnl_dollar"].sum()  # 포지션별 최종 합산 손익
-
-    # 최초 진입 원금: initial_capital 컬럼이 있으면 첫 행 기준, 없으면 entry_capital 합산
-    if "initial_capital" in df.columns:
-        grp_capital = df.groupby("entry_time")["initial_capital"].first()
-    else:
-        grp_capital = df.groupby("entry_time")["entry_capital"].sum()
-
-    grp_ret = grp_pnl / grp_capital * 100
+    grp_pnl     = df.groupby("entry_time")["pnl_dollar"].sum()       # 포지션별 최종 합산 손익
+    grp_capital = df.groupby("entry_time")["entry_capital"].sum()    # 분할 청산 합산 = 최초 원금
+    grp_ret     = grp_pnl / grp_capital * 100
 
     overall_avg = float(grp_ret.mean())
     win_avg     = float(grp_ret[grp_ret > 0].mean())  if (grp_ret > 0).any()  else 0.0
