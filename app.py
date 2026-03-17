@@ -682,15 +682,9 @@ if tf_choice != st.session_state.timeframe:
 
     st.session_state.start_idx = new_start
     st.session_state.current_step = lookback
-    st.session_state.turn_count = 0
-    st.session_state.trade_markers = []
-    # ✅ 지지선은 타임프레임 전환 시 유지 (support_levels 초기화 안 함)
-    st.session_state.pending_entry = None
-    st.session_state.pending_exits = []
+    # ✅ 타임프레임 전환: 포지션/마커/지정가/지지선 등 매매 상태 전부 유지
     st.session_state.price_range_result = None
-    st.session_state.turn_ended = False
     st.query_params.clear()
-    reset_position()
     st.rerun()
 
 # =====================
