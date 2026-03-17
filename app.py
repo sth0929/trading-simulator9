@@ -415,7 +415,9 @@ if st.session_state.turn_count >= MAX_TURNS:
         st.rerun()
 
 else:
-    if st.button("▶️ Next Candle", key="next_candle"):
+    # ✅ chart.html 내 Next Candle 버튼에서 URL 파라미터로 신호 수신
+    if "next_candle" in st.query_params:
+        st.query_params.clear()
         st.session_state.current_step += 1
         st.session_state.turn_count += 1
 
@@ -467,7 +469,7 @@ else:
         liquidated = check_liquidation(row)
         if liquidated:
             st.session_state.pending_entry = None
-            st.session_state.pending_exits = []  # ✅ 강제청산 시 지정가 청산 초기화
+            st.session_state.pending_exits = []
 
         st.rerun()
 
@@ -538,16 +540,11 @@ html_template = open("chart.html", encoding="utf-8").read()
 html_template = html_template.replace("__CANDLE_DATA__", json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__", json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__", json.dumps(support_lines_js))
+html_template = html_template.replace("__TURNS_LEFT__", str(MAX_TURNS - st.session_state.turn_count))
 
-components.html(html_template, height=620)
+components.html(html_template, height=500)
 
-# ----------------------
-# 남은 턴수 표시
-# ----------------------
-st.markdown(
-    f"⏳ 남은 턴수: <span style='color:blue;font-weight:bold;'>{MAX_TURNS - st.session_state.turn_count}</span> / {MAX_TURNS}",
-    unsafe_allow_html=True
-)
+# 남은 턴수는 chart.html 하단에 표시됨
 
 # ----------------------
 # 포지션 손익 계산 및 표시
