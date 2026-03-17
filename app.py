@@ -411,6 +411,7 @@ if st.session_state.turn_count >= MAX_TURNS:
         st.session_state.price_range_result = None
         reset_position()
         st.session_state.turn_ended = False
+        st.query_params.clear()   # ✅ URL에 남은 support_all 파라미터 제거
         st.rerun()
 
 else:
@@ -782,6 +783,7 @@ if st.sidebar.button("🔄 새 게임 시작"):
     st.session_state.resistance_levels = []
     st.session_state.price_range_result = None
     st.session_state.turn_ended = False
+    st.query_params.clear()   # ✅ URL에 남은 support_all 파라미터 제거
 
     reset_position()
 
