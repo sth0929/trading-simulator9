@@ -415,9 +415,17 @@ if st.session_state.turn_count >= MAX_TURNS:
         st.rerun()
 
 else:
-    # ✅ chart.html 내 Next Candle 버튼에서 URL 파라미터로 신호 수신
-    if "next_candle" in st.query_params:
-        st.query_params.clear()
+    # 차트 오른쪽 아래 정렬을 위해 빈 컬럼 + 버튼 컬럼
+    _col_empty, _col_turns, _col_btn = st.columns([4, 2, 1])
+    with _col_turns:
+        st.markdown(
+            f"<div style='text-align:right; padding-top:6px; color:#888; font-size:13px;'>⏳ 남은 턴: <b>{MAX_TURNS - st.session_state.turn_count}</b> / {MAX_TURNS}</div>",
+            unsafe_allow_html=True
+        )
+    with _col_btn:
+        next_clicked = st.button("▶ Next", key="next_candle", use_container_width=True)
+
+    if next_clicked:
         st.session_state.current_step += 1
         st.session_state.turn_count += 1
 
@@ -540,7 +548,6 @@ html_template = open("chart.html", encoding="utf-8").read()
 html_template = html_template.replace("__CANDLE_DATA__", json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__", json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__", json.dumps(support_lines_js))
-html_template = html_template.replace("__TURNS_LEFT__", str(MAX_TURNS - st.session_state.turn_count))
 
 components.html(html_template, height=500)
 
