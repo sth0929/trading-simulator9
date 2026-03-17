@@ -168,7 +168,7 @@ restore_performance()
 # =====================
 # 차트 데이터 로드
 # =====================
-def generate_chart():
+def generate_chart(timeframe="4h"):
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_FILE = os.path.join(BASE_DIR, "btc_1h.csv")
     df = pd.read_csv(DATA_FILE)
@@ -179,12 +179,29 @@ def generate_chart():
     df = df.dropna(subset=["open_time"])
     df = df.sort_values("open_time")
     df.set_index("open_time", inplace=True)
+
+    if timeframe == "1D":
+        df = df.resample("1D").agg({
+            "open":   "first",
+            "high":   "max",
+            "low":    "min",
+            "close":  "last",
+            "volume": "sum"
+        }).dropna()
+
     return df
 
+# 타임프레임 기본값 초기화
+if "timeframe" not in st.session_state:
+    st.session_state.timeframe = "4H"
+
 if st.session_state.df_chart is None:
-    st.session_state.df_chart = generate_chart()
-    st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 351)
-    st.session_state.current_step = 300
+    st.session_state.df_chart = generate_chart(st.session_state.timeframe)
+    # 일봉은 캔들 수가 적으므로 look-back을 100으로 조정
+    lookback = 100 if st.session_state.timeframe == "1D" else 300
+    max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
+    st.session_state.start_idx = random.randint(0, max_start)
+    st.session_state.current_step = lookback
 
 # =====================
 # 포지션 관련 함수
@@ -406,8 +423,10 @@ if st.session_state.turn_count >= MAX_TURNS:
     st.warning("🛑 최대 50턴이 종료되었습니다.")
 
     if st.button("🔁 새 매매 시작"):
-        st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 351)
-        st.session_state.current_step = 300
+        _lookback = 100 if st.session_state.timeframe == "1D" else 300
+        _max_start = max(0, len(st.session_state.df_chart) - _lookback - 50)
+        st.session_state.start_idx = random.randint(0, _max_start)
+        st.session_state.current_step = _lookback
         st.session_state.turn_count = 0
         st.session_state.pending_entry = None
         st.session_state.trade_markers = []
@@ -623,6 +642,35 @@ st.sidebar.info("레버리지: **20x** (고정)  |  자동손절: **시드 2%**"
 st.session_state.leverage = 20
 
 # =====================
+# 📊 타임프레임 선택
+# =====================
+st.sidebar.subheader("📊 타임프레임")
+tf_choice = st.sidebar.radio(
+    "캔들 기준",
+    options=["4H", "1D"],
+    index=0 if st.session_state.timeframe == "4H" else 1,
+    horizontal=True
+)
+
+if tf_choice != st.session_state.timeframe:
+    st.session_state.timeframe = tf_choice
+    st.session_state.df_chart = generate_chart(tf_choice)
+    lookback = 100 if tf_choice == "1D" else 300
+    max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
+    st.session_state.start_idx = random.randint(0, max_start)
+    st.session_state.current_step = lookback
+    st.session_state.turn_count = 0
+    st.session_state.trade_markers = []
+    st.session_state.support_levels = []
+    st.session_state.pending_entry = None
+    st.session_state.pending_exits = []
+    st.session_state.price_range_result = None
+    st.session_state.turn_ended = False
+    st.query_params.clear()
+    reset_position()
+    st.rerun()
+
+# =====================
 # 💰 진입 비중
 # =====================
 st.sidebar.subheader("💰 진입 비중")
@@ -782,8 +830,10 @@ if st.sidebar.button("🔄 새 게임 시작"):
         "created_at": datetime.now(timezone.utc).isoformat()
     }).execute()
 
-    st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 351)
-    st.session_state.current_step = 300
+    lookback = 100 if st.session_state.timeframe == "1D" else 300
+    max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
+    st.session_state.start_idx = random.randint(0, max_start)
+    st.session_state.current_step = lookback
     st.session_state.turn_count = 0
     st.session_state.pending_entry = None
     st.session_state.pending_exits = []
