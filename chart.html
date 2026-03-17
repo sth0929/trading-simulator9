@@ -125,6 +125,41 @@
       border-top: 7px solid rgba(230, 126, 0, 0.92);
       margin: 0 auto;
     }
+
+    /* ▶️ Next Candle 플로팅 버튼 */
+    #nextCandleBtn {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      z-index: 10000;
+      background: rgba(255,255,255,0.88);
+      color: #444;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    #nextCandleBtn:hover {
+      background: #f0f0f0;
+    }
+    #nextCandleBtn:active {
+      background: #e0e0e0;
+    }
+    #turnsLeft {
+      position: absolute;
+      bottom: 18px;
+      right: 130px;
+      z-index: 10000;
+      color: #aaa;
+      font-size: 11px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -139,11 +174,23 @@
 <div id="chart"></div>
 <div id="priceTooltip"></div>
 <div id="measurePopup"><div class="bubble" id="measureBubbleText"></div></div>
+<span id="turnsLeft">⏳ 남은 턴: __TURNS_LEFT__</span>
+<button id="nextCandleBtn" onclick="goNextCandle()">▶ Next Candle</button>
 
 <script>
   const data        = __CANDLE_DATA__;
   const supportInit = __SUPPORT_LINES__;
   const markers     = __MARKER_DATA__;
+
+  function goNextCandle() {
+    try {
+      const url = new URL(window.parent.location.href);
+      url.searchParams.set("next_candle", "1");
+      window.parent.history.replaceState({}, "", url.toString());
+      // Streamlit이 URL 변화를 감지하도록 popstate 이벤트 발생
+      window.parent.dispatchEvent(new PopStateEvent('popstate'));
+    } catch(e) {}
+  }
 
   if (typeof LightweightCharts === "undefined") {
     document.body.innerHTML = "<h2>❌ LightweightCharts 로딩 실패</h2>";
@@ -300,7 +347,6 @@
       line.series.setData(times.map(t => ({ time: t, value: newPrice })));
     }
 
-    // 기존 선 전체 제거 후 새로 그리기 (새 게임 시작 시 초기화 대응)
     function clearAllSupportLines() {
       supportLines.forEach(l => chart.removeSeries(l.series));
       supportLines = [];
@@ -322,11 +368,11 @@
     // 📏 가격 폭 측정 도구 (드래그 방식)
     // =====================
     let measureMode       = false;
-    let measureDragging   = false;   // 드래그 중 여부
-    let measurePriceA     = null;    // 드래그 시작 가격
-    let measureLineA      = null;    // 시작 수평선
-    let measureLineB      = null;    // 끝 수평선 (드래그 중 미리보기 & 확정)
-    let measureStartY     = null;    // 드래그 시작 clientY
+    let measureDragging   = false;
+    let measurePriceA     = null;
+    let measureLineA      = null;
+    let measureLineB      = null;
+    let measureStartY     = null;
 
     const measurePopup      = document.getElementById("measurePopup");
     const measureBubbleText = document.getElementById("measureBubbleText");
@@ -407,12 +453,10 @@
       measurePopup.style.top     = (midY - 4) + "px";
     }
 
-    // ── 드래그 시작
     function handleMeasureDown(clientX, clientY) {
       const price = yToPrice(clientY);
       if (!price || price <= 0) return;
 
-      // 기존 선 제거 후 새로 시작
       clearMeasure();
       measureMode     = true;
       document.getElementById("measureBtn").classList.add("active");
@@ -428,25 +472,21 @@
       setHint("드래그 중… 손을 떼면 확정");
     }
 
-    // ── 드래그 중 (미리보기)
     function handleMeasureMove(clientX, clientY) {
       if (!measureDragging || measurePriceA === null) return;
 
       const price = yToPrice(clientY);
       if (!price || price <= 0) return;
 
-      // B선 실시간 업데이트
       if (measureLineB) {
         updateMeasureLine(measureLineB, price);
       } else {
         measureLineB = drawMeasureLine(price, "#e67e00", true);
       }
 
-      // 말풍선 미리보기
       showMeasurePopup(measurePriceA, price, clientX, clientY);
     }
 
-    // ── 드래그 종료 (확정)
     function handleMeasureUp(clientX, clientY) {
       if (!measureDragging || measurePriceA === null) return;
 
@@ -454,13 +494,11 @@
       measureDragging = false;
 
       if (!price || price <= 0 || Math.abs(price - measurePriceA) < 0.01) {
-        // 거의 같은 자리에서 놓으면 취소
         clearMeasure();
         setHint("시작 지점을 누른 채로 드래그 → 손 떼면 확정");
         return;
       }
 
-      // 최종 B선 고정
       if (measureLineB) {
         updateMeasureLine(measureLineB, price);
       } else {
@@ -471,7 +509,7 @@
       document.getElementById("clearMeasureBtn").classList.add("visible");
       setHint("드래그로 재측정  |  ✕ 로 지우기");
 
-      measurePriceA = null; // 다음 드래그 준비
+      measurePriceA = null;
     }
 
     // =====================
@@ -512,7 +550,6 @@
     function handlePointerDown(e, isTouch) {
       const pos = getClientPos(e);
 
-      // 📏 측정 모드
       if (measureMode) {
         handleMeasureDown(pos.x, pos.y);
         e.preventDefault();
@@ -520,7 +557,6 @@
         return;
       }
 
-      // ✏️ 지지선 그리기 모드
       if (!drawMode) return;
 
       const now  = Date.now();
@@ -553,7 +589,6 @@
     function handlePointerMove(e, isTouch) {
       const pos = getClientPos(e);
 
-      // 📏 측정 모드 드래그 중
       if (measureMode) {
         handleMeasureMove(pos.x, pos.y);
         if (e.cancelable) { e.preventDefault(); e.stopPropagation(); }
@@ -588,7 +623,6 @@
     function handlePointerUp(e, isTouch) {
       const pos = getClientPos(e);
 
-      // 📏 측정 모드 드래그 종료
       if (measureMode) {
         handleMeasureUp(pos.x, pos.y);
         e.preventDefault();
@@ -614,7 +648,6 @@
     chartEl.addEventListener("mousemove",  (e) => handlePointerMove(e, false));
     chartEl.addEventListener("mouseup",    (e) => handlePointerUp(e, false));
     chartEl.addEventListener("mouseleave", () => {
-      // 측정 모드 드래그 중 마우스가 차트 밖으로 나가면 종료
       if (measureMode && measureDragging) {
         measureDragging = false;
         measurePriceA   = null;
