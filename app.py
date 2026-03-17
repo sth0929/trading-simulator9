@@ -684,7 +684,7 @@ if tf_choice != st.session_state.timeframe:
     st.session_state.current_step = lookback
     st.session_state.turn_count = 0
     st.session_state.trade_markers = []
-    st.session_state.support_levels = []
+    # ✅ 지지선은 타임프레임 전환 시 유지 (support_levels 초기화 안 함)
     st.session_state.pending_entry = None
     st.session_state.pending_exits = []
     st.session_state.price_range_result = None
