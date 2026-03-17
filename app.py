@@ -653,11 +653,34 @@ tf_choice = st.sidebar.radio(
 )
 
 if tf_choice != st.session_state.timeframe:
+    # ✅ 현재 차트의 마지막 캔들 시간 저장 (타임프레임 전환 후 같은 시점으로 맞추기 위해)
+    cur_last_time = None
+    if st.session_state.df_chart is not None:
+        cur_end_idx = st.session_state.start_idx + st.session_state.current_step - 1
+        if cur_end_idx < len(st.session_state.df_chart):
+            cur_last_time = st.session_state.df_chart.index[cur_end_idx]
+
     st.session_state.timeframe = tf_choice
-    st.session_state.df_chart = generate_chart(tf_choice)
+    new_df = generate_chart(tf_choice)
+    st.session_state.df_chart = new_df
     lookback = 100 if tf_choice == "1D" else 300
-    max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
-    st.session_state.start_idx = random.randint(0, max_start)
+
+    # ✅ 이전 마지막 캔들 시간과 가장 가까운 위치를 새 데이터에서 찾기
+    if cur_last_time is not None and cur_last_time in new_df.index:
+        new_end_pos = new_df.index.get_loc(cur_last_time)
+    elif cur_last_time is not None:
+        # 정확히 없으면 가장 가까운 날짜 찾기
+        new_end_pos = new_df.index.searchsorted(cur_last_time)
+        new_end_pos = min(new_end_pos, len(new_df) - 1)
+    else:
+        new_end_pos = lookback - 1
+
+    new_start = max(0, new_end_pos - lookback + 1)
+    # 뒤에 최소 50개 캔들이 남도록 보정
+    if new_start + lookback + 50 > len(new_df):
+        new_start = max(0, len(new_df) - lookback - 50)
+
+    st.session_state.start_idx = new_start
     st.session_state.current_step = lookback
     st.session_state.turn_count = 0
     st.session_state.trade_markers = []
