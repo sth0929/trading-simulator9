@@ -178,7 +178,7 @@ def generate_chart():
 
 if st.session_state.df_chart is None:
     st.session_state.df_chart = generate_chart()
-    st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 300)
+    st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 351)
     st.session_state.current_step = 300
 
 # =====================
@@ -401,7 +401,7 @@ if st.session_state.turn_count >= MAX_TURNS:
     st.warning("🛑 최대 50턴이 종료되었습니다.")
 
     if st.button("🔁 새 매매 시작"):
-        st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 300)
+        st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 351)
         st.session_state.current_step = 300
         st.session_state.turn_count = 0
         st.session_state.pending_entry = None
@@ -418,9 +418,12 @@ else:
         st.session_state.current_step += 1
         st.session_state.turn_count += 1
 
-        row = st.session_state.df_chart.iloc[
-            st.session_state.start_idx + st.session_state.current_step - 1
-        ]
+        target_idx = st.session_state.start_idx + st.session_state.current_step - 1
+        if target_idx >= len(st.session_state.df_chart):
+            st.warning("⚠️ 데이터 끝에 도달했습니다. 새 게임을 시작해주세요.")
+            st.stop()
+
+        row = st.session_state.df_chart.iloc[target_idx]
 
         # 📌 지정가 진입 체크
         if st.session_state.pending_entry is not None:
@@ -769,7 +772,7 @@ if st.sidebar.button("🔄 새 게임 시작"):
         "created_at": datetime.now(timezone.utc).isoformat()
     }).execute()
 
-    st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 300)
+    st.session_state.start_idx = random.randint(0, len(st.session_state.df_chart) - 351)
     st.session_state.current_step = 300
     st.session_state.turn_count = 0
     st.session_state.pending_entry = None
