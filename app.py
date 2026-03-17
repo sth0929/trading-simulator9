@@ -158,6 +158,11 @@ def restore_performance():
 # =====================
 # 앱 시작 시 성과 복원 호출
 # =====================
+# ✅ 새 게임 시작 직후 rerun된 경우: balance를 1000으로 강제 고정
+if st.session_state.get("_new_game_balance") is not None:
+    st.session_state.balance = st.session_state["_new_game_balance"]
+    del st.session_state["_new_game_balance"]
+
 restore_performance()
 
 # =====================
