@@ -328,9 +328,9 @@ def check_liquidation(row):
             close_position(liq_price, reason="LIQUIDATION")
             return True
 
-    # ── 2. 자동손절: 현재 잔고 2% 초과손실
+    # ── 2. 자동손절: 현재 잔고 3% 초과손실
     if amt > 0:
-        max_loss = st.session_state.balance * 0.02
+        max_loss = st.session_state.balance * 0.03
         price_change_stop = max_loss / (amt * lev)
 
         if pos == "LONG":
@@ -638,7 +638,7 @@ if st.sidebar.button("🚪 로그아웃", use_container_width=True):
 st.sidebar.divider()
 
 st.sidebar.subheader("⚙️ 거래 설정")
-st.sidebar.info("레버리지: **20x** (고정)  |  자동손절: **시드 2%**")
+st.sidebar.info("레버리지: **20x** (고정)  |  자동손절: **시드 3%**")
 st.session_state.leverage = 20
 
 # =====================
