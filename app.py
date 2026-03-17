@@ -143,7 +143,7 @@ def load_session_trade_log_df():
 def restore_performance():
     if st.session_state.performance_loaded:
         return
-    df = load_trade_log_df()
+    df = load_session_trade_log_df()
     if not df.empty:
         st.session_state.total_pnl = float(df["pnl_dollar"].sum())
         st.session_state.balance = float(df.iloc[-1]["balance_after"])
@@ -333,7 +333,7 @@ def check_liquidation(row):
 # 롱/숏별 통계 함수 ✅ NEW
 # =====================
 def get_direction_stats():
-    df = load_trade_log_df()
+    df = load_session_trade_log_df()
     if df.empty:
         return {}
     result = {}
@@ -363,7 +363,7 @@ def get_direction_stats():
     return result
 
 def get_trade_return_stats():
-    df = load_trade_log_df()
+    df = load_session_trade_log_df()
     if df.empty:
         return 0.0, 0.0, 0.0
 
