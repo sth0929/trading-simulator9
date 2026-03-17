@@ -796,7 +796,7 @@ if st.sidebar.button("🔄 새 게임 시작"):
     st.session_state.trade_count = 0
     st.session_state.win = 0
     st.session_state.lose = 0
-    st.session_state.performance_loaded = False
+    st.session_state.performance_loaded = True  # ✅ DB 복원 막기 (새 게임은 0부터 시작)
 
     st.rerun()
 
