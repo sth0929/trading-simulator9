@@ -328,7 +328,7 @@ def check_liquidation(row):
             close_position(liq_price, reason="LIQUIDATION")
             return True
 
-    # ── 2. 자동손절: 현재 잔고 3% 초과손실
+    # ── 2. 자동손절: 현재 잔고 2% 초과손실
     if amt > 0:
         max_loss = st.session_state.balance * 0.03
         price_change_stop = max_loss / (amt * lev)
@@ -599,7 +599,7 @@ if st.session_state.position is not None:
         liq_price = entry * (1 + 1 / lev)
 
     if amt > 0:
-        price_change_stop = (st.session_state.balance * 0.02) / (amt * lev)
+        price_change_stop = (st.session_state.balance * 0.03) / (amt * lev)
         if st.session_state.position == "LONG":
             auto_stop_price = entry * (1 - price_change_stop)
         else:
