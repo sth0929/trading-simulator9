@@ -573,7 +573,7 @@ html_template = html_template.replace("__CANDLE_DATA__", json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__", json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__", json.dumps(support_lines_js))
 
-components.html(html_template, height=500)
+components.html(html_template, height=420)
 
 # 남은 턴수는 chart.html 하단에 표시됨
 
