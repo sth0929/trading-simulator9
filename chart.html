@@ -147,6 +147,7 @@
   const data        = __CANDLE_DATA__;
   const supportInit = __SUPPORT_LINES__;
   const markers     = __MARKER_DATA__;
+  const fitContent  = __FIT_CONTENT__;
 
   if (typeof LightweightCharts === "undefined") {
     document.body.innerHTML = "<h2>❌ LightweightCharts 로딩 실패</h2>";
@@ -229,9 +230,13 @@
       return false;
     }
     requestAnimationFrame(() => {
-      chart.timeScale().fitContent();
+      if (fitContent) {
+        chart.timeScale().fitContent();
+      } else {
+        const restored = restoreRange();
+        if (!restored) chart.timeScale().fitContent();
+      }
     });
-    // 줌/스크롤 변경 시 저장 (다음 캔들 후 복원용 - 새 게임/타임프레임 전환 시는 fitContent)
     chart.timeScale().subscribeVisibleTimeRangeChange(saveRange);
 
     // =====================
