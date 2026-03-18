@@ -204,37 +204,29 @@
     );
 
     // =====================
-    // 줌/스크롤 상태 유지
+    // 줌/스크롤 상태 유지 (부모 window 변수 사용)
     // =====================
-    const RANGE_KEY = "chart_visible_range";
-
     function saveRange() {
       try {
         const range = chart.timeScale().getVisibleRange();
-        if (range) localStorage.setItem(RANGE_KEY, JSON.stringify(range));
+        if (range) window.parent._chartSavedRange = range;
       } catch(e) {}
-    }
-    function restoreRange() {
-      try {
-        const saved = localStorage.getItem(RANGE_KEY);
-        if (saved) {
-          const range = JSON.parse(saved);
-          const firstTime = data[0].time;
-          const lastTime  = data[data.length - 1].time;
-          if (range.from >= firstTime && range.to <= lastTime + 86400) {
-            chart.timeScale().setVisibleRange(range);
-            return true;
-          }
-        }
-      } catch(e) {}
-      return false;
     }
     requestAnimationFrame(() => {
       if (fitContent) {
         chart.timeScale().fitContent();
+        window.parent._chartSavedRange = null;
       } else {
-        const restored = restoreRange();
-        if (!restored) chart.timeScale().fitContent();
+        try {
+          const saved = window.parent._chartSavedRange;
+          if (saved) {
+            chart.timeScale().setVisibleRange(saved);
+          } else {
+            chart.timeScale().fitContent();
+          }
+        } catch(e) {
+          chart.timeScale().fitContent();
+        }
       }
     });
     chart.timeScale().subscribeVisibleTimeRangeChange(saveRange);
