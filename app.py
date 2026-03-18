@@ -108,6 +108,7 @@ defaults = {
     "turn_ended": False,
     "price_range_result": None,
     "accumulated_pnl": 0.0,    # ✅ 분할 청산 중 누적 손익 (포지션 단위 승/패 판정용)
+    "chart_fit_content": True,  # ✅ 초기/새게임/타임프레임 전환 시 전체 캔들 표시
 }
 
 for k, v in defaults.items():
@@ -572,6 +573,8 @@ html_template = open("chart.html", encoding="utf-8").read()
 html_template = html_template.replace("__CANDLE_DATA__", json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__", json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__", json.dumps(support_lines_js))
+html_template = html_template.replace("__FIT_CONTENT__", "true" if st.session_state.get("chart_fit_content", True) else "false")
+st.session_state.chart_fit_content = False  # ✅ 이후 렌더링은 줌 상태 유지
 
 components.html(html_template, height=420)
 
@@ -684,6 +687,7 @@ if tf_choice != st.session_state.timeframe:
     st.session_state.current_step = lookback
     # ✅ 타임프레임 전환: 포지션/마커/지정가/지지선 등 매매 상태 전부 유지
     st.session_state.price_range_result = None
+    st.session_state.chart_fit_content = True  # ✅ 타임프레임 전환: 전체 캔들 표시
     st.query_params.clear()
     st.rerun()
 
@@ -869,6 +873,7 @@ if st.sidebar.button("🔄 새 게임 시작"):
     st.session_state.win = 0
     st.session_state.lose = 0
     st.session_state.performance_loaded = True  # ✅ DB 복원 막기 (새 게임은 0부터 시작)
+    st.session_state.chart_fit_content = True   # ✅ 새 게임: 전체 캔들 표시
 
     st.rerun()
 
