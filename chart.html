@@ -229,9 +229,9 @@
       return false;
     }
     requestAnimationFrame(() => {
-      const restored = restoreRange();
-      if (!restored) chart.timeScale().fitContent();
+      chart.timeScale().fitContent();
     });
+    // 줌/스크롤 변경 시 저장 (다음 캔들 후 복원용 - 새 게임/타임프레임 전환 시는 fitContent)
     chart.timeScale().subscribeVisibleTimeRangeChange(saveRange);
 
     // =====================
