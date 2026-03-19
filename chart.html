@@ -125,8 +125,6 @@
       border-top: 7px solid rgba(230, 126, 0, 0.92);
       margin: 0 auto;
     }
-
-
   </style>
 </head>
 <body>
@@ -144,10 +142,11 @@
 
 
 <script>
-  const data        = __CANDLE_DATA__;
-  const supportInit = __SUPPORT_LINES__;
-  const markers     = __MARKER_DATA__;
-  const fitContent  = __FIT_CONTENT__;
+  const data          = __CANDLE_DATA__;
+  const supportInit   = __SUPPORT_LINES__;
+  const markers       = __MARKER_DATA__;
+  const fitContent    = __FIT_CONTENT__;
+  const autoStopPrice = __AUTO_STOP_PRICE__;  // 0.0 이면 포지션 없음
 
   if (typeof LightweightCharts === "undefined") {
     document.body.innerHTML = "<h2>❌ LightweightCharts 로딩 실패</h2>";
@@ -204,7 +203,24 @@
     );
 
     // =====================
-    // 줌/스크롤 상태 유지 (부모 window 변수 사용)
+    // ✅ 자동손절가 수평 점선
+    // =====================
+    if (autoStopPrice && autoStopPrice > 0) {
+      const times = data.map(d => d.time);
+      const autoStopSeries = chart.addLineSeries({
+        color: "#e05c5c",
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        crosshairMarkerVisible: false,
+        title: "🛑 손절",
+      });
+      autoStopSeries.setData(times.map(t => ({ time: t, value: autoStopPrice })));
+    }
+
+    // =====================
+    // 줌/스크롤 상태 유지
     // =====================
     function saveRange() {
       try {
@@ -318,7 +334,7 @@
     }
 
     // =====================
-    // 📏 가격 폭 측정 도구 (드래그 방식)
+    // 📏 가격 폭 측정 도구
     // =====================
     let measureMode       = false;
     let measureDragging   = false;
