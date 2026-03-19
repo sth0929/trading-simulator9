@@ -926,4 +926,4 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.metric("잔고", f"${st.session_state.balance:,.2f}")
-st.metric("총 손익", f"${st.session_state.total_pnl
+st.metric("총 손익", f"${st.session_state.total_pnl:,.2f}")
