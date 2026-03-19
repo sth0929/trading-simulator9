@@ -84,7 +84,7 @@ defaults = {
     "entry_capital": 0.0,
     "entry_time": None,
     "entry_balance": 1000.0,
-    "leverage": 5,
+    "leverage": 20,
     "position_ratio": 0.05,
     "trade_count": 0,
     "win": 0,
@@ -107,8 +107,8 @@ defaults = {
     "support_draw_mode": False,
     "turn_ended": False,
     "price_range_result": None,
-    "accumulated_pnl": 0.0,    # ✅ 분할 청산 중 누적 손익 (포지션 단위 승/패 판정용)
-    "chart_fit_content": True,  # ✅ 초기/새게임/타임프레임 전환 시 전체 캔들 표시
+    "accumulated_pnl": 0.0,
+    "chart_fit_content": True,
 }
 
 for k, v in defaults.items():
@@ -149,7 +149,6 @@ def restore_performance():
         st.session_state.total_pnl = float(df["pnl_dollar"].sum())
         st.session_state.balance = float(df.iloc[-1]["balance_after"])
 
-        # ✅ 포지션 단위 승/패: entry_time 기준으로 그룹핑 후 합산 pnl로 판정
         grouped = df.groupby("entry_time")["pnl_dollar"].sum()
         st.session_state.trade_count = len(grouped)
         st.session_state.win  = int((grouped > 0).sum())
@@ -159,7 +158,6 @@ def restore_performance():
 # =====================
 # 앱 시작 시 성과 복원 호출
 # =====================
-# ✅ 새 게임 시작 직후 rerun된 경우: balance를 1000으로 강제 고정
 if st.session_state.get("_new_game_balance") is not None:
     st.session_state.balance = st.session_state["_new_game_balance"]
     del st.session_state["_new_game_balance"]
@@ -198,7 +196,6 @@ if "timeframe" not in st.session_state:
 
 if st.session_state.df_chart is None:
     st.session_state.df_chart = generate_chart(st.session_state.timeframe)
-    # 일봉은 캔들 수가 적으므로 look-back을 100으로 조정
     lookback = 100 if st.session_state.timeframe == "1D" else 300
     max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
     st.session_state.start_idx = random.randint(0, max_start)
@@ -211,18 +208,18 @@ def reset_position():
     st.session_state.position = None
     st.session_state.entry_price = None
     st.session_state.entry_capital = 0
-    st.session_state.initial_capital = 0.0  # ✅ 최초 진입 원금 초기화
+    st.session_state.initial_capital = 0.0
     st.session_state.entry_time = None
     st.session_state.stop_loss_price = None
     st.session_state.entry_balance = st.session_state.balance
-    st.session_state.pending_exits = []     # ✅ 포지션 초기화 시 지정가 청산도 초기화
-    st.session_state.accumulated_pnl = 0.0  # ✅ 포지션 단위 누적 손익 초기화
+    st.session_state.pending_exits = []
+    st.session_state.accumulated_pnl = 0.0
 
 def open_position(pos, price, capital, leverage, position_ratio):
     st.session_state.position = pos
     st.session_state.entry_price = price
     st.session_state.entry_capital = capital
-    st.session_state.initial_capital = capital  # ✅ 최초 진입 원금 (수익률 기준)
+    st.session_state.initial_capital = capital
     st.session_state.leverage = leverage
     st.session_state.position_ratio = position_ratio
     st.session_state.entry_balance = st.session_state.balance
@@ -263,14 +260,11 @@ def close_position(exit_price, reason="MANUAL EXIT", ratio=1.0):
 
     st.session_state.balance += pnl
     st.session_state.total_pnl += pnl
-
-    # ✅ 포지션 단위 누적 손익에 이번 분할 pnl 누적
     st.session_state.accumulated_pnl += pnl
 
     is_full_close = (ratio >= 1.0) or (reason in ("LIQUIDATION", "TIMEOUT EXIT", "AUTO STOP LOSS"))
 
     if is_full_close:
-        # ✅ 분할 청산 포함 전체 합산 pnl 기준으로 승/패 1회만 기록
         final_pnl = st.session_state.accumulated_pnl
         st.session_state.trade_count += 1
         st.session_state.win  += int(final_pnl > 0)
@@ -300,7 +294,7 @@ def close_position(exit_price, reason="MANUAL EXIT", ratio=1.0):
     })
 
     if is_full_close:
-        reset_position()  # ← accumulated_pnl도 여기서 0으로 리셋됨
+        reset_position()
     else:
         remaining_amt = total_amt * (1.0 - ratio)
         st.session_state.entry_capital = remaining_amt
@@ -317,7 +311,6 @@ def check_liquidation(row):
     pos   = st.session_state.position
     amt   = st.session_state.entry_capital
 
-    # ── 1. 강제청산가 (증거금 100% 소진)
     if pos == "LONG":
         liq_price = entry * (1 - 1 / lev)
         if float(row["low"]) <= liq_price:
@@ -329,7 +322,6 @@ def check_liquidation(row):
             close_position(liq_price, reason="LIQUIDATION")
             return True
 
-    # ── 2. 자동손절: 현재 잔고 2% 초과손실
     if amt > 0:
         max_loss = st.session_state.balance * 0.03
         price_change_stop = max_loss / (amt * lev)
@@ -348,7 +340,7 @@ def check_liquidation(row):
     return False
 
 # =====================
-# 롱/숏별 통계 함수 ✅ NEW
+# 롱/숏별 통계 함수
 # =====================
 def get_direction_stats():
     df = load_session_trade_log_df()
@@ -361,9 +353,8 @@ def get_direction_stats():
             result[direction] = None
             continue
 
-        # ✅ 포지션 단위 집계: entry_time으로 그룹핑
-        grp_pnl = sub.groupby("entry_time")["pnl_dollar"].sum()      # 포지션별 최종 합산 손익
-        grp_capital = sub.groupby("entry_time")["entry_capital"].sum()  # 분할 청산 합산 = 최초 원금
+        grp_pnl = sub.groupby("entry_time")["pnl_dollar"].sum()
+        grp_capital = sub.groupby("entry_time")["entry_capital"].sum()
 
         total = len(grp_pnl)
         wins = int((grp_pnl > 0).sum())
@@ -385,9 +376,8 @@ def get_trade_return_stats():
     if df.empty:
         return 0.0, 0.0, 0.0
 
-    # ✅ 포지션 단위 집계: entry_time 기준으로 그룹핑
-    grp_pnl     = df.groupby("entry_time")["pnl_dollar"].sum()       # 포지션별 최종 합산 손익
-    grp_capital = df.groupby("entry_time")["entry_capital"].sum()    # 분할 청산 합산 = 최초 원금
+    grp_pnl     = df.groupby("entry_time")["pnl_dollar"].sum()
+    grp_capital = df.groupby("entry_time")["entry_capital"].sum()
     grp_ret     = grp_pnl / grp_capital * 100
 
     overall_avg = float(grp_ret.mean())
@@ -436,11 +426,10 @@ if st.session_state.turn_count >= MAX_TURNS:
         st.session_state.price_range_result = None
         reset_position()
         st.session_state.turn_ended = False
-        st.query_params.clear()   # ✅ URL에 남은 support_all 파라미터 제거
+        st.query_params.clear()
         st.rerun()
 
 else:
-    # 차트 오른쪽 아래 정렬을 위해 빈 컬럼 + 버튼 컬럼
     _col_empty, _col_turns, _col_btn = st.columns([4, 2, 1])
     with _col_turns:
         st.markdown(
@@ -574,11 +563,9 @@ html_template = html_template.replace("__CANDLE_DATA__", json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__", json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__", json.dumps(support_lines_js))
 html_template = html_template.replace("__FIT_CONTENT__", "true" if st.session_state.get("chart_fit_content", True) else "false")
-st.session_state.chart_fit_content = False  # ✅ 이후 렌더링은 줌 상태 유지
+st.session_state.chart_fit_content = False
 
 components.html(html_template, height=420)
-
-# 남은 턴수는 chart.html 하단에 표시됨
 
 # ----------------------
 # 포지션 손익 계산 및 표시
@@ -616,7 +603,7 @@ if st.session_state.position is not None:
 - 진입가: **{entry:,.2f}**
 - 현재가: **{current_price:,.2f}**
 - 🚨 강제청산가: <span style="color:orange;font-weight:bold;">{liq_price:,.2f}</span>
-- 🛑 자동손절가 <span style="font-size:0.85em;color:gray;">(현재잔고 2%)</span>: <span style="color:#e05c5c;font-weight:bold;">{f'{auto_stop_price:,.2f}' if auto_stop_price else 'N/A'}</span>
+- 🛑 자동손절가 <span style="font-size:0.85em;color:gray;">(현재잔고 3%)</span>: <span style="color:#e05c5c;font-weight:bold;">{f'{auto_stop_price:,.2f}' if auto_stop_price else 'N/A'}</span>
 - 진입 금액: **${amt:,.2f}**
 - 레버리지: **{lev}x**
 - 손익률 (레버리지):
@@ -640,9 +627,29 @@ if st.sidebar.button("🚪 로그아웃", use_container_width=True):
     st.rerun()
 st.sidebar.divider()
 
+# =====================
+# ⚙️ 거래 설정 (레버리지 선택)
+# =====================
 st.sidebar.subheader("⚙️ 거래 설정")
-st.sidebar.info("레버리지: **20x** (고정)  |  자동손절: **시드 3%**")
-st.session_state.leverage = 20
+
+lev_options = [5, 10, 15, 20]
+current_lev = st.session_state.leverage if st.session_state.leverage in lev_options else 20
+lev_index = lev_options.index(current_lev)
+is_in_position = st.session_state.position is not None
+
+st.session_state.leverage = st.sidebar.radio(
+    "레버리지",
+    options=lev_options,
+    index=lev_index,
+    format_func=lambda x: f"{x}x",
+    horizontal=True,
+    key="leverage_radio",
+    disabled=is_in_position
+)
+if is_in_position:
+    st.sidebar.caption("⚠️ 포지션 보유 중 레버리지 변경 불가")
+
+st.sidebar.info(f"레버리지: **{st.session_state.leverage}x**  |  자동손절: **시드 3%**")
 
 # =====================
 # 📊 타임프레임 선택
@@ -656,7 +663,6 @@ tf_choice = st.sidebar.radio(
 )
 
 if tf_choice != st.session_state.timeframe:
-    # ✅ 현재 차트의 마지막 캔들 시간 저장 (타임프레임 전환 후 같은 시점으로 맞추기 위해)
     cur_last_time = None
     if st.session_state.df_chart is not None:
         cur_end_idx = st.session_state.start_idx + st.session_state.current_step - 1
@@ -668,26 +674,22 @@ if tf_choice != st.session_state.timeframe:
     st.session_state.df_chart = new_df
     lookback = 100 if tf_choice == "1D" else 300
 
-    # ✅ 이전 마지막 캔들 시간과 가장 가까운 위치를 새 데이터에서 찾기
     if cur_last_time is not None and cur_last_time in new_df.index:
         new_end_pos = new_df.index.get_loc(cur_last_time)
     elif cur_last_time is not None:
-        # 정확히 없으면 가장 가까운 날짜 찾기
         new_end_pos = new_df.index.searchsorted(cur_last_time)
         new_end_pos = min(new_end_pos, len(new_df) - 1)
     else:
         new_end_pos = lookback - 1
 
     new_start = max(0, new_end_pos - lookback + 1)
-    # 뒤에 최소 50개 캔들이 남도록 보정
     if new_start + lookback + 50 > len(new_df):
         new_start = max(0, len(new_df) - lookback - 50)
 
     st.session_state.start_idx = new_start
     st.session_state.current_step = lookback
-    # ✅ 타임프레임 전환: 포지션/마커/지정가/지지선 등 매매 상태 전부 유지
     st.session_state.price_range_result = None
-    st.session_state.chart_fit_content = True  # ✅ 타임프레임 전환: 전체 캔들 표시
+    st.session_state.chart_fit_content = True
     st.query_params.clear()
     st.rerun()
 
@@ -783,7 +785,6 @@ else:
 if st.session_state.position:
     st.sidebar.subheader("📤 포지션 청산")
 
-    # 즉시 청산
     if st.sidebar.button("25% 청산"):
         close_position(current_price, "25% EXIT", ratio=0.25)
         st.rerun()
@@ -796,7 +797,6 @@ if st.session_state.position:
         close_position(current_price, "FULL EXIT", ratio=1.0)
         st.rerun()
 
-    # ✅ 지정가 청산
     st.sidebar.markdown("---")
     st.sidebar.caption("📌 지정가 청산 예약")
 
@@ -822,7 +822,6 @@ if st.session_state.position:
         })
         st.rerun()
 
-    # 지정가 청산 대기 목록
     if st.session_state.pending_exits:
         st.sidebar.caption("🕐 지정가 청산 대기 목록")
         for i, ex in enumerate(st.session_state.pending_exits):
@@ -863,7 +862,7 @@ if st.sidebar.button("🔄 새 게임 시작"):
     st.session_state.resistance_levels = []
     st.session_state.price_range_result = None
     st.session_state.turn_ended = False
-    st.query_params.clear()   # ✅ URL에 남은 support_all 파라미터 제거
+    st.query_params.clear()
 
     reset_position()
 
@@ -872,8 +871,8 @@ if st.sidebar.button("🔄 새 게임 시작"):
     st.session_state.trade_count = 0
     st.session_state.win = 0
     st.session_state.lose = 0
-    st.session_state.performance_loaded = True  # ✅ DB 복원 막기 (새 게임은 0부터 시작)
-    st.session_state.chart_fit_content = True   # ✅ 새 게임: 전체 캔들 표시
+    st.session_state.performance_loaded = True
+    st.session_state.chart_fit_content = True
 
     st.rerun()
 
@@ -885,7 +884,6 @@ winrate = (st.session_state.win / total_trades * 100) if total_trades else 0
 
 avg_return, win_avg_return, loss_avg_return = get_trade_return_stats()
 
-# ✅ 롱/숏별 통계
 dir_stats = get_direction_stats()
 long_s = dir_stats.get("LONG")
 short_s = dir_stats.get("SHORT")
@@ -928,4 +926,4 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.metric("잔고", f"${st.session_state.balance:,.2f}")
-st.metric("총 손익", f"${st.session_state.total_pnl:,.2f}")
+st.metric("총 손익", f"${st.session_state.total_pnl
