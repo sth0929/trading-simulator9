@@ -570,11 +570,15 @@ if st.session_state.position is not None and st.session_state.entry_capital > 0:
     else:
         auto_stop_price_val = _entry * (1 + _price_change_stop)
 
+# ✅ 진입가 → chart.html에 전달
+entry_price_val = float(st.session_state.entry_price) if st.session_state.entry_price else 0.0
+
 html_template = open("chart.html", encoding="utf-8").read()
 html_template = html_template.replace("__CANDLE_DATA__",     json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__",     json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__",   json.dumps(support_lines_js))
 html_template = html_template.replace("__AUTO_STOP_PRICE__", json.dumps(auto_stop_price_val))
+html_template = html_template.replace("__ENTRY_PRICE__",     json.dumps(entry_price_val))
 html_template = html_template.replace("__FIT_CONTENT__", "true" if st.session_state.get("chart_fit_content", True) else "false")
 st.session_state.chart_fit_content = False
 
