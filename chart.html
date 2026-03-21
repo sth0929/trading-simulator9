@@ -94,6 +94,7 @@
       white-space: nowrap;
     }
 
+    /* 가격 폭 결과 말풍선 */
     #measurePopup {
       position: absolute;
       pointer-events: none;
@@ -124,20 +125,23 @@
       border-top: 7px solid rgba(230, 126, 0, 0.92);
       margin: 0 auto;
     }
+
+
   </style>
 </head>
 <body>
 
 <div id="toolbar">
-  <button id="drawBtn"         class="tool-btn" onclick="toggleDrawMode()">&#9999;&#65039; 지지선</button>
-  <button id="measureBtn"      class="tool-btn" onclick="toggleMeasureMode()">&#128207; 가격 폭</button>
-  <button id="clearMeasureBtn" class="tool-btn" onclick="clearMeasure()">&#10005; 폭 지우기</button>
+  <button id="drawBtn"         class="tool-btn" onclick="toggleDrawMode()">✏️ 지지선</button>
+  <button id="measureBtn"      class="tool-btn" onclick="toggleMeasureMode()">📏 가격 폭</button>
+  <button id="clearMeasureBtn" class="tool-btn" onclick="clearMeasure()">✕ 폭 지우기</button>
   <span   id="toolHint">모드를 선택하세요</span>
 </div>
 
 <div id="chart"></div>
 <div id="priceTooltip"></div>
 <div id="measurePopup"><div class="bubble" id="measureBubbleText"></div></div>
+
 
 <script>
   const data          = __CANDLE_DATA__;
@@ -148,7 +152,7 @@
   const entryPrice    = __ENTRY_PRICE__;
 
   if (typeof LightweightCharts === "undefined") {
-    document.body.innerHTML = "<h2>LightweightCharts 로딩 실패</h2>";
+    document.body.innerHTML = "<h2>❌ LightweightCharts 로딩 실패</h2>";
   } else {
 
     const TOOLBAR_H = 36;
@@ -201,11 +205,8 @@
       }))
     );
 
-    // =====================
-    // 진입가 수평 실선 (노란색)
-    // =====================
+    // ✅ 진입가 수평 실선 (노란색)
     if (entryPrice && entryPrice > 0) {
-      const times = data.map(d => d.time);
       const entrySeries = chart.addLineSeries({
         color: "#f0b400",
         lineWidth: 2,
@@ -215,14 +216,11 @@
         crosshairMarkerVisible: false,
         title: "ENTRY",
       });
-      entrySeries.setData(times.map(t => ({ time: t, value: entryPrice })));
+      entrySeries.setData(data.map(d => ({ time: d.time, value: entryPrice })));
     }
 
-    // =====================
-    // 자동손절가 수평 점선 (빨간색)
-    // =====================
+    // ✅ 자동손절가 수평 점선 (빨간색)
     if (autoStopPrice && autoStopPrice > 0) {
-      const times = data.map(d => d.time);
       const autoStopSeries = chart.addLineSeries({
         color: "#e05c5c",
         lineWidth: 2,
@@ -232,11 +230,11 @@
         crosshairMarkerVisible: false,
         title: "STOP",
       });
-      autoStopSeries.setData(times.map(t => ({ time: t, value: autoStopPrice })));
+      autoStopSeries.setData(data.map(d => ({ time: d.time, value: autoStopPrice })));
     }
 
     // =====================
-    // 줌/스크롤 상태 유지
+    // 줌/스크롤 상태 유지 (부모 window 변수 사용)
     // =====================
     function saveRange() {
       try {
@@ -350,7 +348,7 @@
     }
 
     // =====================
-    // 가격 폭 측정 도구
+    // 📏 가격 폭 측정 도구 (드래그 방식)
     // =====================
     let measureMode       = false;
     let measureDragging   = false;
@@ -420,12 +418,12 @@
     function showMeasurePopup(priceA, priceB, clientX, clientY) {
       const pct    = ((priceB - priceA) / priceA) * 100;
       const absPct = Math.abs(pct);
-      const arrow  = pct >= 0 ? "UP" : "DN";
+      const arrow  = pct >= 0 ? "📈" : "📉";
       const sign   = pct >= 0 ? "+" : "";
 
       measureBubbleText.innerHTML =
-        arrow + " " + priceA.toFixed(2) + " to " + priceB.toFixed(2) + "<br>" +
-        "<span style='font-size:15px;'>" + sign + pct.toFixed(2) + "% (" + absPct.toFixed(2) + "%)</span>";
+        `${arrow} ${priceA.toFixed(2)} → ${priceB.toFixed(2)}<br>` +
+        `<span style="font-size:15px;">${sign}${pct.toFixed(2)}%&nbsp;(${absPct.toFixed(2)}%)</span>`;
 
       const rect = chartEl.getBoundingClientRect();
       const yA   = candleSeries.priceToCoordinate(priceA);
@@ -454,7 +452,7 @@
       if (measureLineA) chart.removeSeries(measureLineA);
       measureLineA = drawMeasureLine(price, "#e67e00", false);
 
-      setHint("드래그 중... 손을 떼면 확정");
+      setHint("드래그 중… 손을 떼면 확정");
     }
 
     function handleMeasureMove(clientX, clientY) {
@@ -492,7 +490,7 @@
 
       showMeasurePopup(measurePriceA, price, clientX, clientY);
       document.getElementById("clearMeasureBtn").classList.add("visible");
-      setHint("드래그로 재측정  |  X 로 지우기");
+      setHint("드래그로 재측정  |  ✕ 로 지우기");
 
       measurePriceA = null;
     }
@@ -627,7 +625,7 @@
     }
 
     // =====================
-    // 마우스 이벤트
+    // 마우스 이벤트 (PC)
     // =====================
     chartEl.addEventListener("mousedown",  (e) => handlePointerDown(e, false));
     chartEl.addEventListener("mousemove",  (e) => handlePointerMove(e, false));
@@ -643,7 +641,7 @@
     });
 
     // =====================
-    // 터치 이벤트
+    // 터치 이벤트 (모바일)
     // =====================
     chartEl.addEventListener("touchstart", (e) => {
       if (e.touches.length >= 2) { dragging = null; return; }
