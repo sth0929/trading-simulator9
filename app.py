@@ -244,7 +244,7 @@ def close_position(exit_price, reason="MANUAL EXIT", ratio=1.0):
     st.session_state.balance += pnl
     st.session_state.total_pnl += pnl
     st.session_state.accumulated_pnl += pnl
-    is_full_close = (ratio >= 1.0) or (reason in ("LIQUIDATION", "TIMEOUT EXIT", "AUTO STOP LOSS"))
+    is_full_close = (ratio >= 1.0) or (reason in ("LIQUIDATION", "TIMEOUT EXIT"))
     if is_full_close:
         final_pnl = st.session_state.accumulated_pnl
         st.session_state.trade_count += 1
@@ -277,7 +277,7 @@ def close_position(exit_price, reason="MANUAL EXIT", ratio=1.0):
         st.session_state.entry_capital = total_amt * (1.0 - ratio)
 
 # =====================
-# 강제청산 + 자동손절 체크
+# 강제청산 체크 (자동손절 제거)
 # =====================
 def check_liquidation(row):
     if st.session_state.position is None:
@@ -285,7 +285,6 @@ def check_liquidation(row):
     entry = st.session_state.entry_price
     lev   = st.session_state.leverage
     pos   = st.session_state.position
-    amt   = st.session_state.entry_capital
     if pos == "LONG":
         liq_price = entry * (1 - 1 / lev)
         if float(row["low"]) <= liq_price:
@@ -296,19 +295,6 @@ def check_liquidation(row):
         if float(row["high"]) >= liq_price:
             close_position(liq_price, reason="LIQUIDATION")
             return True
-    if amt > 0:
-        max_loss = st.session_state.balance * 0.03
-        price_change_stop = max_loss / (amt * lev)
-        if pos == "LONG":
-            stop_price = entry * (1 - price_change_stop)
-            if float(row["low"]) <= stop_price:
-                close_position(stop_price, reason="AUTO STOP LOSS")
-                return True
-        else:
-            stop_price = entry * (1 + price_change_stop)
-            if float(row["high"]) >= stop_price:
-                close_position(stop_price, reason="AUTO STOP LOSS")
-                return True
     return False
 
 # =====================
@@ -490,23 +476,13 @@ markers = [
 
 support_lines_js = [{"price": float(p)} for p in st.session_state.support_levels]
 
-# ✅ 자동손절가 계산
-auto_stop_price_val = 0.0
-if st.session_state.position is not None and st.session_state.entry_capital > 0:
-    _amt   = st.session_state.entry_capital
-    _lev   = st.session_state.leverage
-    _entry = st.session_state.entry_price
-    _chg   = (st.session_state.balance * 0.03) / (_amt * _lev)
-    auto_stop_price_val = _entry * (1 - _chg) if st.session_state.position == "LONG" else _entry * (1 + _chg)
-
-# ✅ 진입가
 entry_price_val = float(st.session_state.entry_price) if st.session_state.entry_price else 0.0
 
 html_template = open("chart.html", encoding="utf-8").read()
 html_template = html_template.replace("__CANDLE_DATA__",     json.dumps(candles))
 html_template = html_template.replace("__MARKER_DATA__",     json.dumps(markers))
 html_template = html_template.replace("__SUPPORT_LINES__",   json.dumps(support_lines_js))
-html_template = html_template.replace("__AUTO_STOP_PRICE__", json.dumps(auto_stop_price_val))
+html_template = html_template.replace("__AUTO_STOP_PRICE__", json.dumps(0.0))
 html_template = html_template.replace("__ENTRY_PRICE__",     json.dumps(entry_price_val))
 html_template = html_template.replace("__FIT_CONTENT__",     "true" if st.session_state.get("chart_fit_content", True) else "false")
 st.session_state.chart_fit_content = False
@@ -526,19 +502,12 @@ if st.session_state.position is not None:
     profit_leveraged  = amt * price_change * lev
     liq_price         = entry * (1 - 1/lev) if st.session_state.position == "LONG" else entry * (1 + 1/lev)
 
-    if amt > 0:
-        _chg = (st.session_state.balance * 0.03) / (amt * lev)
-        auto_stop_price = entry * (1 - _chg) if st.session_state.position == "LONG" else entry * (1 + _chg)
-    else:
-        auto_stop_price = None
-
     st.markdown(f"""
 ### 📊 현재 포지션
 - 포지션: **{st.session_state.position}**
 - 진입가: **{entry:,.2f}**
 - 현재가: **{current_price:,.2f}**
 - 🚨 강제청산가: <span style="color:orange;font-weight:bold;">{liq_price:,.2f}</span>
-- 🛑 자동손절가 <span style="font-size:0.85em;color:gray;">(현재잔고 3%)</span>: <span style="color:#e05c5c;font-weight:bold;">{f'{auto_stop_price:,.2f}' if auto_stop_price else 'N/A'}</span>
 - 진입 금액: **${amt:,.2f}**
 - 레버리지: **{lev}x**
 - 손익률 (레버리지): <span style="color:{'green' if pnl_leveraged_pct >= 0 else 'red'};"> **{pnl_leveraged_pct:+.2f}%** </span>
@@ -569,7 +538,7 @@ st.session_state.leverage = st.sidebar.radio(
 )
 if is_in_position:
     st.sidebar.caption("⚠️ 포지션 보유 중 레버리지 변경 불가")
-st.sidebar.info(f"레버리지: **{st.session_state.leverage}x**  |  자동손절: **시드 3%**")
+st.sidebar.info(f"레버리지: **{st.session_state.leverage}x**")
 
 # 타임프레임
 st.sidebar.subheader("📊 타임프레임")
@@ -766,4 +735,4 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.metric("잔고", f"${st.session_state.balance:,.2f}")
-st.metric("총 손익", f"${st.session_state.total_pnl:,.2f}")
+st.metric("총 손익", f"${st.session_state.total_pnl:
