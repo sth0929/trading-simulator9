@@ -94,7 +94,6 @@
       white-space: nowrap;
     }
 
-    /* 가격 폭 결과 말풍선 */
     #measurePopup {
       position: absolute;
       pointer-events: none;
@@ -125,8 +124,6 @@
       border-top: 7px solid rgba(230, 126, 0, 0.92);
       margin: 0 auto;
     }
-
-
   </style>
 </head>
 <body>
@@ -142,14 +139,12 @@
 <div id="priceTooltip"></div>
 <div id="measurePopup"><div class="bubble" id="measureBubbleText"></div></div>
 
-
 <script>
-  const data          = __CANDLE_DATA__;
-  const supportInit   = __SUPPORT_LINES__;
-  const markers       = __MARKER_DATA__;
-  const fitContent    = __FIT_CONTENT__;
-  const autoStopPrice = __AUTO_STOP_PRICE__;
-  const entryPrice    = __ENTRY_PRICE__;
+  const data        = __CANDLE_DATA__;
+  const supportInit = __SUPPORT_LINES__;
+  const markers     = __MARKER_DATA__;
+  const fitContent  = __FIT_CONTENT__;
+  const entryPrice  = __ENTRY_PRICE__;
 
   if (typeof LightweightCharts === "undefined") {
     document.body.innerHTML = "<h2>❌ LightweightCharts 로딩 실패</h2>";
@@ -205,7 +200,7 @@
       }))
     );
 
-    // ✅ 진입가 수평 실선 (노란색)
+    // 진입가 수평 실선 (노란색)
     if (entryPrice && entryPrice > 0) {
       const entrySeries = chart.addLineSeries({
         color: "#f0b400",
@@ -219,22 +214,8 @@
       entrySeries.setData(data.map(d => ({ time: d.time, value: entryPrice })));
     }
 
-    // ✅ 자동손절가 수평 점선 (빨간색)
-    if (autoStopPrice && autoStopPrice > 0) {
-      const autoStopSeries = chart.addLineSeries({
-        color: "#e05c5c",
-        lineWidth: 2,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        priceLineVisible: false,
-        lastValueVisible: true,
-        crosshairMarkerVisible: false,
-        title: "STOP",
-      });
-      autoStopSeries.setData(data.map(d => ({ time: d.time, value: autoStopPrice })));
-    }
-
     // =====================
-    // 줌/스크롤 상태 유지 (부모 window 변수 사용)
+    // 줌/스크롤 상태 유지
     // =====================
     function saveRange() {
       try {
@@ -348,14 +329,14 @@
     }
 
     // =====================
-    // 📏 가격 폭 측정 도구 (드래그 방식)
+    // 📏 가격 폭 측정 도구
     // =====================
-    let measureMode       = false;
-    let measureDragging   = false;
-    let measurePriceA     = null;
-    let measureLineA      = null;
-    let measureLineB      = null;
-    let measureStartY     = null;
+    let measureMode     = false;
+    let measureDragging = false;
+    let measurePriceA   = null;
+    let measureLineA    = null;
+    let measureLineB    = null;
+    let measureStartY   = null;
 
     const measurePopup      = document.getElementById("measurePopup");
     const measureBubbleText = document.getElementById("measureBubbleText");
