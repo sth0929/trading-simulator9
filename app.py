@@ -277,7 +277,7 @@ def close_position(exit_price, reason="MANUAL EXIT", ratio=1.0):
         st.session_state.entry_capital = total_amt * (1.0 - ratio)
 
 # =====================
-# 강제청산 체크 (자동손절 제거)
+# 강제청산 체크
 # =====================
 def check_liquidation(row):
     if st.session_state.position is None:
@@ -545,25 +545,12 @@ st.sidebar.subheader("📊 타임프레임")
 tf_choice = st.sidebar.radio("캔들 기준", options=["4H", "1D"],
                               index=0 if st.session_state.timeframe == "4H" else 1, horizontal=True)
 if tf_choice != st.session_state.timeframe:
-    cur_last_time = None
-    if st.session_state.df_chart is not None:
-        cur_end_idx = st.session_state.start_idx + st.session_state.current_step - 1
-        if cur_end_idx < len(st.session_state.df_chart):
-            cur_last_time = st.session_state.df_chart.index[cur_end_idx]
     st.session_state.timeframe = tf_choice
-    new_df   = generate_chart(tf_choice)
+    new_df = generate_chart(tf_choice)
     st.session_state.df_chart = new_df
     lookback = 100 if tf_choice == "1D" else 300
-    if cur_last_time is not None and cur_last_time in new_df.index:
-        new_end_pos = new_df.index.get_loc(cur_last_time)
-    elif cur_last_time is not None:
-        new_end_pos = min(new_df.index.searchsorted(cur_last_time), len(new_df) - 1)
-    else:
-        new_end_pos = lookback - 1
-    new_start = max(0, new_end_pos - lookback + 1)
-    if new_start + lookback + 50 > len(new_df):
-        new_start = max(0, len(new_df) - lookback - 50)
-    st.session_state.start_idx    = new_start
+    max_start = max(0, len(new_df) - lookback - 50)
+    st.session_state.start_idx    = random.randint(0, max_start)
     st.session_state.current_step = lookback
     st.session_state.price_range_result = None
     st.session_state.chart_fit_content  = True
