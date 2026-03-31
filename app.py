@@ -109,6 +109,7 @@ defaults = {
     "price_range_result": None,
     "accumulated_pnl": 0.0,
     "chart_fit_content": True,
+    "_pending_tf": None,
 }
 
 for k, v in defaults.items():
@@ -206,6 +207,35 @@ if st.session_state.df_chart is None:
     max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
     st.session_state.start_idx = random.randint(0, max_start)
     st.session_state.current_step = lookback
+
+# =====================
+# 타임프레임 전환 처리 (rerun 안정화)
+# =====================
+if st.session_state.get("_pending_tf") is not None:
+    tf_choice = st.session_state._pending_tf
+    st.session_state._pending_tf = None
+
+    cur_df = st.session_state.df_chart
+    cur_end_idx = min(
+        st.session_state.start_idx + st.session_state.current_step - 1,
+        len(cur_df) - 1
+    )
+    cur_last_time = cur_df.index[cur_end_idx]
+
+    st.session_state.timeframe = tf_choice
+    new_df = generate_chart(tf_choice)
+    st.session_state.df_chart = new_df
+    lookback = get_lookback(tf_choice)
+
+    new_end_pos = new_df.index.searchsorted(cur_last_time, side="right") - 1
+    new_end_pos = max(lookback - 1, min(new_end_pos, len(new_df) - 2))
+
+    st.session_state.start_idx    = max(0, new_end_pos - lookback + 1)
+    st.session_state.current_step = lookback
+    st.session_state.price_range_result = None
+    st.session_state.chart_fit_content  = True
+    st.query_params.clear()
+    st.rerun()
 
 # =====================
 # 포지션 관련 함수
@@ -565,29 +595,7 @@ tf_choice = st.sidebar.radio(
     horizontal=True
 )
 if tf_choice != st.session_state.timeframe:
-    # 현재 마지막 캔들의 타임스탬프 저장
-    cur_df = st.session_state.df_chart
-    cur_end_idx = min(
-        st.session_state.start_idx + st.session_state.current_step - 1,
-        len(cur_df) - 1
-    )
-    cur_last_time = cur_df.index[cur_end_idx]
-
-    # 새 타임프레임 데이터 생성
-    st.session_state.timeframe = tf_choice
-    new_df = generate_chart(tf_choice)
-    st.session_state.df_chart = new_df
-    lookback = get_lookback(tf_choice)
-
-    # 새 df에서 같은 시점(또는 가장 가까운 시점) 찾기
-    new_end_pos = new_df.index.searchsorted(cur_last_time, side="right") - 1
-    new_end_pos = max(lookback - 1, min(new_end_pos, len(new_df) - 2))
-
-    st.session_state.start_idx    = max(0, new_end_pos - lookback + 1)
-    st.session_state.current_step = lookback
-    st.session_state.price_range_result = None
-    st.session_state.chart_fit_content  = True
-    st.query_params.clear()
+    st.session_state._pending_tf = tf_choice
     st.rerun()
 
 # 진입 비중
