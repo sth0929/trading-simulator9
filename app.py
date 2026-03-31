@@ -164,10 +164,10 @@ restore_performance()
 # 타임프레임별 lookback
 # =====================
 def get_lookback(timeframe):
-    if timeframe == "1D":
-        return 100
-    elif timeframe == "1W":
+    if timeframe == "1W":
         return 60
+    elif timeframe == "1D":
+        return 100
     else:  # 4H
         return 300
 
@@ -558,18 +558,32 @@ st.sidebar.info(f"레버리지: **{st.session_state.leverage}x**")
 
 # 타임프레임
 st.sidebar.subheader("📊 타임프레임")
+tf_options = ["4H", "1D", "1W"]
 tf_choice = st.sidebar.radio(
-    "캔들 기준", options=["4H", "1D", "1W"],
-    index=["4H", "1D", "1W"].index(st.session_state.timeframe),
+    "캔들 기준", options=tf_options,
+    index=tf_options.index(st.session_state.timeframe),
     horizontal=True
 )
 if tf_choice != st.session_state.timeframe:
+    # 현재 마지막 캔들의 타임스탬프 저장
+    cur_df = st.session_state.df_chart
+    cur_end_idx = min(
+        st.session_state.start_idx + st.session_state.current_step - 1,
+        len(cur_df) - 1
+    )
+    cur_last_time = cur_df.index[cur_end_idx]
+
+    # 새 타임프레임 데이터 생성
     st.session_state.timeframe = tf_choice
     new_df = generate_chart(tf_choice)
     st.session_state.df_chart = new_df
     lookback = get_lookback(tf_choice)
-    max_start = max(0, len(new_df) - lookback - 50)
-    st.session_state.start_idx    = random.randint(0, max_start)
+
+    # 새 df에서 같은 시점(또는 가장 가까운 시점) 찾기
+    new_end_pos = new_df.index.searchsorted(cur_last_time, side="right") - 1
+    new_end_pos = max(lookback - 1, min(new_end_pos, len(new_df) - 2))
+
+    st.session_state.start_idx    = max(0, new_end_pos - lookback + 1)
     st.session_state.current_step = lookback
     st.session_state.price_range_result = None
     st.session_state.chart_fit_content  = True
