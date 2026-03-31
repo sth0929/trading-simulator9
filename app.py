@@ -161,9 +161,20 @@ if st.session_state.get("_new_game_balance") is not None:
 restore_performance()
 
 # =====================
+# 타임프레임별 lookback
+# =====================
+def get_lookback(timeframe):
+    if timeframe == "1D":
+        return 100
+    elif timeframe == "1W":
+        return 60
+    else:  # 4H
+        return 300
+
+# =====================
 # 차트 데이터 로드
 # =====================
-def generate_chart(timeframe="4h"):
+def generate_chart(timeframe="4H"):
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_FILE = os.path.join(BASE_DIR, "btc_1h.csv")
     df = pd.read_csv(DATA_FILE)
@@ -179,6 +190,11 @@ def generate_chart(timeframe="4h"):
             "open": "first", "high": "max", "low": "min",
             "close": "last", "volume": "sum"
         }).dropna()
+    elif timeframe == "1W":
+        df = df.resample("1W").agg({
+            "open": "first", "high": "max", "low": "min",
+            "close": "last", "volume": "sum"
+        }).dropna()
     return df
 
 if "timeframe" not in st.session_state:
@@ -186,7 +202,7 @@ if "timeframe" not in st.session_state:
 
 if st.session_state.df_chart is None:
     st.session_state.df_chart = generate_chart(st.session_state.timeframe)
-    lookback = 100 if st.session_state.timeframe == "1D" else 300
+    lookback = get_lookback(st.session_state.timeframe)
     max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
     st.session_state.start_idx = random.randint(0, max_start)
     st.session_state.current_step = lookback
@@ -357,7 +373,7 @@ if st.session_state.turn_count >= MAX_TURNS:
     st.session_state.turn_ended = True
     st.warning("🛑 최대 50턴이 종료되었습니다.")
     if st.button("🔁 새 매매 시작"):
-        _lookback = 100 if st.session_state.timeframe == "1D" else 300
+        _lookback = get_lookback(st.session_state.timeframe)
         _max_start = max(0, len(st.session_state.df_chart) - _lookback - 50)
         st.session_state.start_idx = random.randint(0, _max_start)
         st.session_state.current_step = _lookback
@@ -542,13 +558,16 @@ st.sidebar.info(f"레버리지: **{st.session_state.leverage}x**")
 
 # 타임프레임
 st.sidebar.subheader("📊 타임프레임")
-tf_choice = st.sidebar.radio("캔들 기준", options=["4H", "1D"],
-                              index=0 if st.session_state.timeframe == "4H" else 1, horizontal=True)
+tf_choice = st.sidebar.radio(
+    "캔들 기준", options=["4H", "1D", "1W"],
+    index=["4H", "1D", "1W"].index(st.session_state.timeframe),
+    horizontal=True
+)
 if tf_choice != st.session_state.timeframe:
     st.session_state.timeframe = tf_choice
     new_df = generate_chart(tf_choice)
     st.session_state.df_chart = new_df
-    lookback = 100 if tf_choice == "1D" else 300
+    lookback = get_lookback(tf_choice)
     max_start = max(0, len(new_df) - lookback - 50)
     st.session_state.start_idx    = random.randint(0, max_start)
     st.session_state.current_step = lookback
@@ -651,7 +670,7 @@ if st.sidebar.button("🔄 새 게임 시작"):
         "session_id": new_session_id, "user_id": USER_ID,
         "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()
     }).execute()
-    lookback  = 100 if st.session_state.timeframe == "1D" else 300
+    lookback  = get_lookback(st.session_state.timeframe)
     max_start = max(0, len(st.session_state.df_chart) - lookback - 50)
     st.session_state.start_idx    = random.randint(0, max_start)
     st.session_state.current_step = lookback
