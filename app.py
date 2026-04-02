@@ -570,7 +570,66 @@ if st.sidebar.button("🚪 로그아웃", use_container_width=True):
     st.rerun()
 st.sidebar.divider()
 
-# 레버리지
+# =====================
+# 🧮 레버리지 계산기
+# =====================
+st.sidebar.subheader("🧮 레버리지 계산기")
+st.sidebar.caption("손절 -3% 고정 기준으로 적정 레버리지를 계산합니다.")
+
+calc_entry = st.sidebar.number_input(
+    "진입가", value=float(current_price), step=1.0, key="calc_entry"
+)
+calc_sl = st.sidebar.number_input(
+    "손절가", value=float(current_price) * 0.97, step=1.0, key="calc_sl"
+)
+
+if calc_entry > 0 and calc_sl > 0 and calc_entry != calc_sl:
+    sl_pct = abs(calc_entry - calc_sl) / calc_entry  # 진입가 대비 손절 거리 (소수)
+    max_loss_pct = 0.03                               # 시드 대비 최대 손실 3%
+
+    # 필요 레버리지 = 최대손실% / (손절거리% × 진입비중)
+    position_ratio_now = st.session_state.position_ratio
+    required_lev = max_loss_pct / (sl_pct * position_ratio_now)
+
+    # 손절 방향 체크
+    sl_direction = "LONG (손절가 < 진입가)" if calc_sl < calc_entry else "SHORT (손절가 > 진입가)"
+
+    # 결과 색상: 레버리지가 낮을수록 안전
+    lev_color = "green" if required_lev <= 10 else ("orange" if required_lev <= 20 else "red")
+
+    st.sidebar.markdown(f"""
+<div style="background:#1e1e2e; border-radius:8px; padding:12px; margin-top:4px;">
+  <div style="color:#aaa; font-size:12px; margin-bottom:6px;">방향: {sl_direction}</div>
+  <div style="color:#aaa; font-size:12px;">손절 거리: <b style="color:white;">{sl_pct*100:.2f}%</b></div>
+  <div style="color:#aaa; font-size:12px;">진입 비중: <b style="color:white;">{int(position_ratio_now*100)}%</b></div>
+  <div style="color:#aaa; font-size:12px;">최대 손실 허용: <b style="color:white;">-3%</b></div>
+  <hr style="border-color:#333; margin:8px 0;">
+  <div style="font-size:15px; color:#aaa;">적정 레버리지</div>
+  <div style="font-size:28px; font-weight:bold; color:{lev_color};">{required_lev:.1f}x</div>
+</div>
+""", unsafe_allow_html=True)
+
+    # 참고용 레버리지별 예상 손실 표
+    st.sidebar.caption("📋 레버리지별 예상 손실")
+    lev_list = [5, 10, 15, 20]
+    for lv in lev_list:
+        loss_pct = sl_pct * lv * position_ratio_now * 100
+        bar_color = "green" if loss_pct <= 3 else ("orange" if loss_pct <= 5 else "red")
+        st.sidebar.markdown(
+            f"<div style='display:flex; justify-content:space-between; font-size:13px;'>"
+            f"<span style='color:#aaa;'>{lv}x</span>"
+            f"<span style='color:{bar_color}; font-weight:bold;'>-{loss_pct:.2f}%</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+else:
+    st.sidebar.info("진입가와 손절가를 입력하세요.")
+
+st.sidebar.divider()
+
+# =====================
+# 거래 설정
+# =====================
 st.sidebar.subheader("⚙️ 거래 설정")
 lev_options = [5, 10, 15, 20]
 current_lev = st.session_state.leverage if st.session_state.leverage in lev_options else 20
