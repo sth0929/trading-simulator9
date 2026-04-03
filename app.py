@@ -574,56 +574,67 @@ st.sidebar.divider()
 # 🧮 레버리지 계산기
 # =====================
 st.sidebar.subheader("🧮 레버리지 계산기")
-st.sidebar.caption("손절 -3% 고정 기준으로 적정 레버리지를 계산합니다.")
+
+balance_now      = st.session_state.balance
+position_ratio   = st.session_state.position_ratio
+invest_amount    = balance_now * position_ratio   # 실제 투입금액
+max_loss_amount  = balance_now * 0.03             # 시드의 3% = 허용 최대 손실금
 
 calc_entry = st.sidebar.number_input(
-    "진입가", value=float(current_price), step=1.0, key="calc_entry"
+    "진입가", value=float(current_price), step=1.0, key="calc_entry", format="%.1f"
 )
 calc_sl = st.sidebar.number_input(
-    "손절가", value=float(current_price) * 0.97, step=1.0, key="calc_sl"
+    "손절가", value=float(current_price) * 0.97, step=1.0, key="calc_sl", format="%.1f"
 )
 
 if calc_entry > 0 and calc_sl > 0 and calc_entry != calc_sl:
-    sl_pct = abs(calc_entry - calc_sl) / calc_entry  # 진입가 대비 손절 거리 (소수)
-    max_loss_pct = 0.03                               # 시드 대비 최대 손실 3%
+    sl_distance_pct = abs(calc_entry - calc_sl) / calc_entry  # 손절 거리 비율
 
-    # 필요 레버리지 = 최대손실% / (손절거리% × 진입비중)
-    position_ratio_now = st.session_state.position_ratio
-    required_lev = max_loss_pct / (sl_pct * position_ratio_now)
+    # 핵심 공식:
+    # 손실금 = 투입금액 × 레버리지 × 손절거리%
+    # 최대손실 = 투입금액 × 레버리지 × 손절거리%
+    # → 레버리지 = 최대손실금 / (투입금액 × 손절거리%)
+    required_lev = max_loss_amount / (invest_amount * sl_distance_pct)
 
-    # 손절 방향 체크
-    sl_direction = "LONG (손절가 < 진입가)" if calc_sl < calc_entry else "SHORT (손절가 > 진입가)"
-
-    # 결과 색상: 레버리지가 낮을수록 안전
-    lev_color = "green" if required_lev <= 10 else ("orange" if required_lev <= 20 else "red")
+    actual_loss   = invest_amount * required_lev * sl_distance_pct  # = max_loss_amount
+    sl_dir_label  = "LONG용 (손절 < 진입)" if calc_sl < calc_entry else "SHORT용 (손절 > 진입)"
+    lev_color     = "green" if required_lev <= 10 else ("orange" if required_lev <= 20 else "red")
 
     st.sidebar.markdown(f"""
-<div style="background:#1e1e2e; border-radius:8px; padding:12px; margin-top:4px;">
-  <div style="color:#aaa; font-size:12px; margin-bottom:6px;">방향: {sl_direction}</div>
-  <div style="color:#aaa; font-size:12px;">손절 거리: <b style="color:white;">{sl_pct*100:.2f}%</b></div>
-  <div style="color:#aaa; font-size:12px;">진입 비중: <b style="color:white;">{int(position_ratio_now*100)}%</b></div>
-  <div style="color:#aaa; font-size:12px;">최대 손실 허용: <b style="color:white;">-3%</b></div>
-  <hr style="border-color:#333; margin:8px 0;">
-  <div style="font-size:15px; color:#aaa;">적정 레버리지</div>
-  <div style="font-size:28px; font-weight:bold; color:{lev_color};">{required_lev:.1f}x</div>
+<div style="background:#1a1a2e; border:1px solid #333; border-radius:10px; padding:14px; margin-top:6px;">
+  <div style="color:#888; font-size:12px; margin-bottom:10px;">{sl_dir_label}</div>
+
+  <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+    <span style="color:#aaa; font-size:13px;">현재 잔고</span>
+    <span style="color:white; font-size:13px;">${balance_now:,.2f}</span>
+  </div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+    <span style="color:#aaa; font-size:13px;">진입 비중 ({int(position_ratio*100)}%)</span>
+    <span style="color:white; font-size:13px;">${invest_amount:,.2f}</span>
+  </div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+    <span style="color:#aaa; font-size:13px;">손절 거리</span>
+    <span style="color:white; font-size:13px;">{sl_distance_pct*100:.2f}%</span>
+  </div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+    <span style="color:#aaa; font-size:13px;">허용 최대 손실 (시드 -3%)</span>
+    <span style="color:#ff6b6b; font-size:13px;">-${max_loss_amount:,.2f}</span>
+  </div>
+
+  <hr style="border-color:#333; margin:0 0 12px 0;">
+
+  <div style="text-align:center;">
+    <div style="color:#aaa; font-size:13px; margin-bottom:4px;">적정 레버리지</div>
+    <div style="font-size:36px; font-weight:bold; color:{lev_color};">{required_lev:.1f}x</div>
+    <div style="color:#ff6b6b; font-size:12px; margin-top:4px;">
+      손절 시 예상 손실: -${actual_loss:,.2f} (시드 대비 -3.00%)
+    </div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
-    # 참고용 레버리지별 예상 손실 표
-    st.sidebar.caption("📋 레버리지별 예상 손실")
-    lev_list = [5, 10, 15, 20]
-    for lv in lev_list:
-        loss_pct = sl_pct * lv * position_ratio_now * 100
-        bar_color = "green" if loss_pct <= 3 else ("orange" if loss_pct <= 5 else "red")
-        st.sidebar.markdown(
-            f"<div style='display:flex; justify-content:space-between; font-size:13px;'>"
-            f"<span style='color:#aaa;'>{lv}x</span>"
-            f"<span style='color:{bar_color}; font-weight:bold;'>-{loss_pct:.2f}%</span>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
 else:
-    st.sidebar.info("진입가와 손절가를 입력하세요.")
+    st.sidebar.caption("진입가와 손절가를 입력하면 적정 레버리지를 계산합니다.")
 
 st.sidebar.divider()
 
